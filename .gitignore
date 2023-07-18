@@ -1,1 +1,2 @@
-*corr*.bmp
+*.bmp
+!*corr*.bmp
