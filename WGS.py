@@ -5,6 +5,7 @@ import numpy as np
 from profile import Profile
 from slm import SLM
 from matplotlib import pyplot as plt
+# import cupy as cp
 from InversePhase import inverse_phase
 import scipy.stats
 import sys
@@ -82,23 +83,23 @@ class IFTA:
             print('Step %d' % i)
         return self.slm_field, self.image_field
 
-    def save_pattern(self, name, slm, correction=False, plots=(0, 1, 2, 3, 4, 5), min=False, target=True):
+    def save_pattern(self, name, slm, correction=False, plots=(0, 1, 2, 3, 4, 5), min=False, target=True, show=(0, 1, 2, 3, 4, 5)):
         if min:
-            slm.ampToBMP(np.abs(self.input), name=name + '_input_amp', color=(0 in plots))
-            slm.phaseToBMP(self.min_dev[2], name=name + '_input_phase', correction=correction, color=(1 in plots))
+            slm.ampToBMP(np.abs(self.input), name=name + '_input_amp', color=(0 in plots), show=(0 in show))
+            slm.phaseToBMP(self.min_dev[2], name=name + '_input_phase', correction=correction, color=(1 in plots), show=(1 in show))
 
-            slm.ampToBMP(self.min_dev[3], name=name + '_output_amp', color=(2 in plots))
-            slm.phaseToBMP(self.min_dev[4], name=name + '_output_phase', color=(3 in plots))
+            slm.ampToBMP(self.min_dev[3], name=name + '_output_amp', color=(2 in plots), show=(2 in show))
+            slm.phaseToBMP(self.min_dev[4], name=name + '_output_phase', color=(3 in plots), show=(3 in show))
         else:
-            slm.ampToBMP(np.abs(self.slm_field), name=name + '_input_amp', color=(0 in plots))
-            slm.phaseToBMP(np.angle(self.slm_field), name=name + '_input_phase', correction=correction, color=(1 in plots))
+            slm.ampToBMP(np.abs(self.slm_field), name=name + '_input_amp', color=(0 in plots), show=(0 in show))
+            slm.phaseToBMP(np.angle(self.slm_field), name=name + '_input_phase', correction=correction, color=(1 in plots), show=(1 in show))
 
-            slm.ampToBMP(np.abs(self.image_field), name=name + '_output_amp', color=(2 in plots))
-            slm.phaseToBMP(np.angle(self.image_field), name=name + '_output_phase', color=(3 in plots))
+            slm.ampToBMP(np.abs(self.image_field), name=name + '_output_amp', color=(2 in plots), show=(2 in show))
+            slm.phaseToBMP(np.angle(self.image_field), name=name + '_output_phase', color=(3 in plots), show=(3 in show))
 
         if target:
-            slm.ampToBMP(np.abs(self.target), name=name + '_target_amp', color=(4 in plots))
-            slm.phaseToBMP(np.angle(self.target), name=name + '_target_phase', color=(5 in plots))
+            slm.ampToBMP(np.abs(self.target), name=name + '_target_amp', color=(4 in plots), show=(4 in show))
+            slm.phaseToBMP(np.angle(self.target), name=name + '_target_phase', color=(5 in plots), show=(5 in show))
 
     def avg(self, field, pos, radius):
         avg = 0
@@ -117,12 +118,16 @@ class IFTA:
             spots = self.spots
         return np.array([self.avg(field, m, waist) for m in spots])
 
-    def dev_phase(self, spots=None, waist=0.01):
+    def dev_phase(self, spots=None, waist=0.01, target=None):
         if spots is None:
             spots = self.spots
-        phases = [(np.angle(self.avg(self.image_field, m, waist)) + 2 * pi) % (2 * pi) for m in spots]
-        return np.max([np.max([min(np.abs(p1 - p2), 2 * pi - np.abs(p1 - p2)) for p2 in phases]) for p1 in phases])
+        if target is None:
+            target = [0 for _ in spots]
+        target = np.array(target)
+        phases = np.array([(np.angle(self.avg(self.image_field, m, waist)) + 2 * pi) % (2 * pi) for m in spots])
+        # return np.max([np.max([min(np.abs(p1 - p2), 2 * pi - np.abs(p1 - p2)) for p2 in phases]) for p1 in phases])
         # return scipy.stats.circstd(phases, high=pi, low=-pi)
+        return ((np.max(phases - target) + 2 * np.pi) % 2 * np.pi) / (2 * np.pi)
 
     def dev_amp(self, spots=None, waist=0.01):
         if spots is None:
@@ -353,8 +358,8 @@ class ThreeStep(IFTA):
 
 class Wu(IFTA):
     def __init__(self, size=np.array((1024, 1272)), input=Profile.input_gaussian(), target=Profile.spot_array(4, 4),
-                 wavelength=413e-9, f=100, waist=0.01):
-        super().__init__(size, input, target, wavelength, f, waist)
+                 wavelength=413e-9, f=100, waist=0.001):
+        super().__init__(size=size, input=input, target=target, wavelength=wavelength, f=f, waist=waist)
 
         self.p = 2 * pi * np.random.random_sample(size)
 
@@ -370,11 +375,14 @@ class Wu(IFTA):
         self.P_t = np.angle(self.target)
 
         self.mask = np.where(np.abs(self.target) > 1e-3, 1, 0)
-        # slm.ampToBMP(np.abs(self.mask), name='mask', color=True)
+        # slm.ampToBMP(np.abs(self.mask), name='mask', color=True, show=False)
 
         self.eff = []
         self.nonunif = []
         self.phase_err = []
+
+        self.target_phase = [np.angle(self.avg(field=self.target, pos=spot, radius=waist)) for spot in self.spots]
+        # print(self.target_phase)
 
     def step(self):
         U_c = self.image_field
@@ -405,7 +413,7 @@ class Wu(IFTA):
             self.step()
             self.eff.append(self.eta())
             self.nonunif.append(self.dev_amp(waist=0.001))
-            self.phase_err.append(self.phase_error())
+            self.phase_err.append(self.dev_phase(waist=0.001, target=self.target_phase))
 
         # self.image_field = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(self.input * np.exp(1j * self.p)), norm="ortho"))
 
@@ -556,24 +564,23 @@ def array1D_OutputOutput(slm, it=20, n=5, pitch=0.02, size=(0.05, 0.05), start=N
     return oo
 
 
-def wu(slm, N=40, M=10, n=5, plot_each=False):
+def wu(slm, N=40, M=20, n=5, plot_each=False):
 
     input_profile = Profile.input_gaussian(beam_size=(0.5, 0.5))
     input_profile /= np.sqrt(np.sum(np.abs(input_profile)**2))
 
     amps = [1 for _ in range(n)]
     phases = [0 for _ in range(n)]
+    phases = [pi, pi / 2, 0, pi / 2, pi]
 
     eff = []
     nonunif = []
     phase_err = []
 
     wus = []
-    slm_fields = []
-    image_fields = []
 
     for i in range(M):
-        print('Iteration: ' + str(M))
+        print('Iteration: ' + str(i))
         target = Profile.target_output_array(1, n, input_profile=input_profile, x_pitch=0.008, amps=amps, phases=phases)
 
         # print(np.sum(np.abs(input_profile)**2))
@@ -584,6 +591,7 @@ def wu(slm, N=40, M=10, n=5, plot_each=False):
         wu = Wu(input=input_profile, target=target)
         # print(wu.target.shape)
         wu.iterate(N)
+        print()
         # print(np.sum(np.abs(wu.image_field)**2))
         # temp = wu.image_field
         # wu.image_field = np.abs(wu.image_field) * np.exp(1j * np.angle(wu.image_field) * wu.mask)
@@ -604,6 +612,7 @@ def wu(slm, N=40, M=10, n=5, plot_each=False):
         print('Diffraction Efficiency: ' + str(eff[-1]))
         print('Amplitude nonuniformity: ' + str(nonunif[-1]))
         print('Phase error: ' + str(phase_err[-1]))
+        print()
 
         # print(wu.beams(waist=0.005))
 
@@ -623,7 +632,11 @@ def wu(slm, N=40, M=10, n=5, plot_each=False):
 
     min_it = nonunif.index(min(nonunif))
 
-    wus[min_it].save_pattern(name='wu_1x5', slm=slm, target=False, correction=True)
+    wus[min_it].save_pattern(name='wu_1x5', slm=slm, target=False, correction=True, show=())
+    # plt.ion()
+    slm.ampToBMP(np.abs(wus[min_it].mask), name='wu_1x5_mask', color=True)
+
+    slm.phaseToBMP(np.angle(wus[min_it].image_field) * wus[min_it].mask, 'wu_1x5_image_phase_mask', color=True)
 
     print('')
     print('----Minimum iteration----')
@@ -631,6 +644,7 @@ def wu(slm, N=40, M=10, n=5, plot_each=False):
     print('Amplitude nonuniformity: ' + str(nonunif[min_it]))
     print('Phase error: ' + str(phase_err[min_it]))
 
+    plt.clf()
     plt.plot([n for n in range(N)], wus[min_it].eff, label='Efficiency')
     plt.plot([n for n in range(N)], wus[min_it].nonunif, label='Amplitude Nonuniformity')
     plt.plot([n for n in range(N)], wus[min_it].phase_err, label='Phase error')
@@ -638,8 +652,11 @@ def wu(slm, N=40, M=10, n=5, plot_each=False):
     plt.xlim(0, N)
     plt.grid(True)
     plt.legend()
-    plt.show()
+    plt.pause(.001)
+    plt.savefig('images/inner_convergence.png')
+    # plt.draw()
 
+    plt.clf()
     plt.plot([m for m in range(M)], eff, label='Efficiency')
     plt.plot([m for m in range(M)], nonunif, label='Amplitude Nonuniformity')
     plt.plot([m for m in range(M)], phase_err, label='Phase error')
@@ -647,6 +664,7 @@ def wu(slm, N=40, M=10, n=5, plot_each=False):
     plt.xlim(0, M)
     plt.grid(True)
     plt.legend()
+    plt.savefig('images/outer_convergence.png')
     plt.show()
 
 

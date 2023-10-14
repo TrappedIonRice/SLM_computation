@@ -59,12 +59,13 @@ class SLM:
         # rgb = matplotlib.colors.hsv_to_rgb(hsv)
         return grayscale
 
-    def phaseToBMP(self, phase, name='output', wavelength=413, correction=False, color=False):
+    def phaseToBMP(self, phase, name='output', wavelength=413, correction=False, color=False, show=False):
         phase = (phase + 2 * pi) % (2 * pi)
         if correction:
             phase = self.add(phase, self.correction)
 
         if color:
+            plt.clf()
             fig = plt.figure(dpi=150)
             phase[0, 0] = 0
             phase[-1, -1] = 2 * pi
@@ -74,18 +75,22 @@ class SLM:
             plt.ylabel('Y (px)')
             plt.title(name + ' (pi radians)')
             fig.tight_layout()
-            plt.show()
+            plt.pause(.001)
+            if show:
+                plt.show()
+                # plt.draw()
             im.frombytes('RGB', fig.canvas.get_width_height(),
                          fig.canvas.tostring_rgb()).save('images/' + name + '_color.png')
 
         bmp_array = np.array(phase / (2 * pi) * self.lut[wavelength], dtype=np.uint8)
         im.fromarray(bmp_array).save('images/' + name + '.bmp')
 
-    def ampToBMP(self, amp, name='output', color=False):
+    def ampToBMP(self, amp, name='output', color=False, show=False):
         bmp_array = np.array(((amp / np.max(amp)) ** 2) * 255, dtype=np.uint8)
         im.fromarray(bmp_array).save('images/' + name + '.bmp')
 
         if color:
+            plt.clf()
             fig = plt.figure(dpi=240)
             amp[0, 0] = 0
             plt.imshow(amp)
@@ -94,7 +99,10 @@ class SLM:
             plt.ylabel('Y (px)')
             plt.title(name)
             fig.tight_layout()
-            plt.show()
+            plt.pause(.001)
+            if show:
+                plt.show()
+                # plt.draw()
             im.frombytes('RGB', fig.canvas.get_width_height(),
                          fig.canvas.tostring_rgb()).save('images/' + name + '_color.png')
 
