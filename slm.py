@@ -17,7 +17,7 @@ class SLM:
             lut = {411: 102, 413: 103, 435:114}
         self.lut = lut
 
-        self.size = size
+        self.size = np.array(size)
         self.pitch = pitch
 
         correction_image = im.open(correction_path)
@@ -59,14 +59,15 @@ class SLM:
         # rgb = matplotlib.colors.hsv_to_rgb(hsv)
         return grayscale
 
-    def phaseToBMP(self, phase, name='output', wavelength=413, correction=False, color=False, show=False):
+    def phaseToBMP(self, phase, name='output', wavelength=413, correction=False, color=False, show=False, fig=None):
         phase = (phase + 2 * pi) % (2 * pi)
         if correction:
             phase = self.add(phase, self.correction)
 
         if color:
+            fig = plt.figure(fig, dpi=150)
             plt.clf()
-            fig = plt.figure(dpi=150)
+            # fig = plt.figure(dpi=150)
             phase[0, 0] = 0
             phase[-1, -1] = 2 * pi
             plt.imshow(phase / pi, cmap='hsv')
@@ -85,13 +86,14 @@ class SLM:
         bmp_array = np.array(phase / (2 * pi) * self.lut[wavelength], dtype=np.uint8)
         im.fromarray(bmp_array).save('images/' + name + '.bmp')
 
-    def ampToBMP(self, amp, name='output', color=False, show=False):
+    def ampToBMP(self, amp, name='output', color=False, show=False, fig=None):
         bmp_array = np.array(((amp / np.max(amp)) ** 2) * 255, dtype=np.uint8)
         im.fromarray(bmp_array).save('images/' + name + '.bmp')
 
         if color:
+            fig = plt.figure(fig, dpi=240)
             plt.clf()
-            fig = plt.figure(dpi=240)
+            # fig = plt.figure(dpi=240)
             amp[0, 0] = 0
             plt.imshow(amp)
             plt.colorbar()
