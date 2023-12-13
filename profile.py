@@ -34,6 +34,7 @@ class Profile:
         slm.ampToBMP(self.amp, name=name + '_amp')
         slm.phaseToBMP(self.phase, name=name + '_phase', color=True)
 
+    # Generate single gaussian beam
     @staticmethod
     def input_gaussian(beam_type=0, amp=1.0, beam_size=np.array((0.5, 0.5)), pos=np.array((0, 0)),
                        size=np.array((1024, 1272))):
@@ -54,6 +55,7 @@ class Profile:
 
         return amp_profile
 
+    # Generate array of single pixel spots
     @staticmethod
     def spot_array(n, m, center=np.array((0, 0)), x_pitch=0.1, y_pitch=0.1, size=np.array((1024, 1272))):
         amp_profile = np.zeros(size)
@@ -71,6 +73,7 @@ class Profile:
                 spots = np.append(spots, [[int((i + 0.5) * size[0]), int(0.5 * size[1])]], axis=0)
         return [amp_profile * np.exp(2j * pi), spots[1:]]
 
+    # Generate array of gaussian beams
     @staticmethod
     def gaussian_array(n, m, waist=(0.02, 0.02), center=np.array((0, 0)), x_pitch=0.1, y_pitch=0.1,
                        size=np.array((1024, 1272)), amps=None):
@@ -90,6 +93,7 @@ class Profile:
         amp /= np.max(np.abs(amp))
         return [amp, spots]
 
+    # Generate a target output array of gaussian beams
     @staticmethod
     def target_output_array(n, m, input_profile, center=np.array((0, 0)),
                               x_pitch=0.1, y_pitch=0.1, size=np.array((1024, 1272)), amps=None, phases=None,

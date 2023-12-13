@@ -13,12 +13,16 @@ import sys
 pi = cp.pi
 
 
+# Wrapper class for iterative fourier transform algorithms
 class IFTA:
+
+    # Initialize an IFTA for an SLM of specified size, with specified input and target light fields
     def __init__(self, size=(1024, 1272), input=Profile.input_gaussian(), target=Profile.spot_array(4, 4),
                  wavelength=413e-9, f=100, waist=0.01):
         self.size = size
         self.waist = waist
 
+        # Initial SLM phase is random
         self.input = input
         self.slm_field = input * cp.exp(2j * pi * cp.random.random_sample(size))
 
@@ -27,6 +31,7 @@ class IFTA:
         self.phi = cp.angle(self.slm_field)
         self.psi = cp.zeros(size)
 
+        # Keep track of iterations and deviations from target phase and amplitude for each iteration
         self.it = []
         self.B_dev = []
         self.psi_dev = []
@@ -39,6 +44,7 @@ class IFTA:
         self.wavelength = wavelength
         self.f = f
 
+    # Propagate the SLM plane light field to the image plane
     def propagate(self, slm_field=None):
         if slm_field is None:
             slm_field = self.slm_field
@@ -50,9 +56,11 @@ class IFTA:
         self.psi = cp.angle(self.image_field)
         return self.image_field
 
+    # Optimization method
     def opt(self):
         pass
 
+    # Backpropagate the image plane light field to the SLM plane
     def backpropagate(self, image_field=None):
         if image_field is None:
             image_field = self.image_field
@@ -65,6 +73,8 @@ class IFTA:
 
         self.slm_field = self.input * cp.exp(1j * self.phi)
 
+    # Iterate n times and optimize at each step, keeping track of the amplitude and phase deviations at each step, as
+    # well as the iteration with minimum error
     def iterate(self, n):
         for i in range(n):
             self.propagate()
@@ -83,6 +93,7 @@ class IFTA:
             print('Step %d' % i)
         return self.slm_field, self.image_field
 
+    # Plot and save the results of the IFTA run
     def save_pattern(self, name, slm, correction=False, plots=(0, 1, 2, 3, 4, 5), min=False, target=True, show=(0, 1, 2, 3, 4, 5)):
         if min:
             slm.ampToBMP(cp.abs(self.input).get(), name=name + '_input_amp', color=(0 in plots), show=(0 in show))
@@ -101,6 +112,7 @@ class IFTA:
             slm.ampToBMP(cp.abs(self.target).get(), name=name + '_target_amp', color=(4 in plots), show=(4 in show))
             slm.phaseToBMP(cp.angle(self.target).get(), name=name + '_target_phase', color=(5 in plots), show=(5 in show))
 
+    # Take the average of the field in a circle of radius centered at pos
     def avg(self, field, pos, radius):
         avg = 0
         pts = 0
@@ -111,6 +123,7 @@ class IFTA:
                     pts += 1
         return avg / pts
 
+    # Return the phase and amplitude of set of beams at positions spots
     def beams(self, field=None, spots=None, waist=0.01):
         if field is None:
             field = self.image_field
@@ -118,6 +131,7 @@ class IFTA:
             spots = self.spots
         return cp.array([self.avg(field, m, waist) for m in spots])
 
+    # Calculate phase error
     def dev_phase(self, spots=None, waist=0.01, target=None):
         if spots is None:
             spots = self.spots
@@ -129,12 +143,14 @@ class IFTA:
         # return scipy.stats.circstd(phases, high=pi, low=-pi)
         return ((cp.max(phases - target) + 2 * cp.pi) % 2 * cp.pi) / (2 * cp.pi)
 
+    # Calculate amplitude error
     def dev_amp(self, spots=None, waist=0.01):
         if spots is None:
             spots = self.spots
         amps = cp.array([cp.abs(self.avg(cp.abs(self.image_field), m, waist)) for m in spots])
         return (cp.max(amps) - cp.min(amps)) / cp.max(amps)
 
+    # Calculate intensity error
     def dev_intensity(self, spots=None, waist=0.01):
         if spots is None:
             spots = self.spots
@@ -142,6 +158,7 @@ class IFTA:
         return (cp.max(intensities) - cp.min(intensities)) / cp.max(intensities)
 
 
+# Implement the WGS algorithm (intensity control only)
 class WGS(IFTA):
 
     def __init__(self, size=cp.array((1024, 1272)), input=Profile.input_gaussian(), target=Profile.spot_array(4, 4),
@@ -215,6 +232,7 @@ class WGS(IFTA):
         return self.slm_field, self.image_field
 
 
+# Unfinished IFTA
 class CostOptimizer(WGS):
 
     def __init__(self, size=cp.array((1024, 1272)), input=Profile.input_gaussian(), target=Profile.spot_array(4, 4),
@@ -272,6 +290,7 @@ class CostOptimizer(WGS):
                 phase[i, j] -= h
 
 
+# Unfinished IFTA
 class OutputOutput(IFTA):
     def __init__(self, size=cp.array((1024, 1272)), input=Profile.input_gaussian(), target=Profile.gaussian_array(1, 5),
                  wavelength=413e-9, f=100, waist=0.01, beta=1):
@@ -351,11 +370,13 @@ class OutputOutput(IFTA):
         return self.slm_field, self.image_field
 
 
+# Unfinished IFTA
 class ThreeStep(IFTA):
     def __init__(self):
         super().__init__()
 
 
+# Implement the algorithm in the Wu paper (phase and intensity control)
 class Wu(IFTA):
     def __init__(self, size=(1024, 1272), input=Profile.input_gaussian(), target=Profile.spot_array(4, 4),
                  wavelength=413e-9, f=100, waist=0.001):
@@ -374,9 +395,11 @@ class Wu(IFTA):
         self.A_t = cp.abs(self.target)
         self.P_t = cp.angle(self.target)
 
+        # Generate a mask with 0 everywhere except where the target pattern is, to divide the image into target and noise areas
         self.mask = cp.where(cp.abs(self.target) > 1e-3, cp.ones(size), cp.zeros(size))
         # slm.ampToBMP(cp.abs(self.mask), name='mask', color=True, show=False)
 
+        # Performance trackers
         self.eff = []
         self.nonunif = []
         self.phase_err = []
@@ -384,6 +407,7 @@ class Wu(IFTA):
         self.target_phase = [cp.angle(self.avg(field=self.target, pos=spot, radius=waist)) for spot in self.spots]
         # print(self.target_phase)
 
+    # Execute a single iteration of the algorithm
     def step(self):
         U_c = self.image_field
         A_c = cp.abs(U_c)
@@ -407,6 +431,7 @@ class Wu(IFTA):
 
         self.image_field /= cp.sqrt(cp.sum(cp.abs(self.image_field)**2))
 
+    # Execute the algorithm for N iterations
     def iterate(self, N):
         for n in range(N):
             print(str(n) + ' ', end='')
@@ -417,12 +442,15 @@ class Wu(IFTA):
 
         # self.image_field = cp.fft.fftshift(cp.fft.fft2(cp.fft.fftshift(self.input * cp.exp(1j * self.p)), norm="ortho"))
 
+    # Diffraction efficiency
     def eta(self):
         return cp.sum(cp.abs(self.mask * self.image_field)**2) / cp.sum(cp.abs(self.image_field)**2)
 
+    # Diffraction efficiency
     def I_a(self):
         return cp.sum(self.mask * cp.abs(self.image_field)**2) / cp.sum(self.mask)
 
+    # Calculate amplitude nonuniformity
     def nonuniformity(self):
         # I_a = self.I_a()
         # I_a = cp.sum(self.mask * cp.abs(self.image_field)**2) / cp.sum(self.mask)
@@ -431,9 +459,11 @@ class Wu(IFTA):
         return cp.sum(self.mask * cp.abs(cp.abs(self.image_field) - cp.abs(self.target))**2)\
                / cp.sum(self.mask * cp.abs(self.target)**2)
 
+    # Calculate spot nonuniformity
     def spot_nonuniformity(self):
         return
 
+    # Calculate phase error
     def phase_error(self):
         return cp.sum(self.mask * cp.abs(self.image_field)**2 * cp.abs(cp.angle(self.image_field) - cp.angle(self.target)))\
                / cp.sum(self.mask * cp.abs(self.image_field)**2 * cp.pi)
@@ -450,6 +480,7 @@ class Wu(IFTA):
 #     return (cp.max(amps) - cp.min(amps)) / (cp.max(amps) + cp.min(amps))
 
 
+# Generate single TEM01 beam
 def tem01(slm, size=(0.05, 0.05)):
     wgs = WGS(input=Profile.input_gaussian(beam_type=0, beam_size=cp.array(size)))
     wgs.phi[-1] = slm.half()
@@ -460,6 +491,7 @@ def tem01(slm, size=(0.05, 0.05)):
     return wgs
 
 
+# WGS 2D array of beams
 def array2D(slm, n=4, m=4, x_pitch=0.02, y_pitch=0.02, size=(0.05, 0.05)):
     wgs = WGS(input=Profile.input_gaussian(beam_type=0, beam_size=cp.array(size)),
               target=Profile.spot_array(m, n, x_pitch=y_pitch, y_pitch=x_pitch))
@@ -469,6 +501,7 @@ def array2D(slm, n=4, m=4, x_pitch=0.02, y_pitch=0.02, size=(0.05, 0.05)):
     return wgs
 
 
+# WGS 1D array of beams
 def array1D(slm, it=20, tries=1, n=5, pitch=0.02, size=(0.05, 0.05), start=None, ref=None, consider_phase=False, waist=0.01, plots=(0, 1, 2, 3), add_noise=False):
     wgs = []
     min = 0
@@ -505,6 +538,7 @@ def array1D(slm, it=20, tries=1, n=5, pitch=0.02, size=(0.05, 0.05), start=None,
     return wgs[min]
 
 
+# WGS 2D array of TEM01 beams
 def tem01_2D(slm, n=1, m=5, wgs=None, size=(0.05, 0.05)):
     if wgs is None:
         wgs = array2D(slm, n, m)
@@ -517,6 +551,7 @@ def tem01_2D(slm, n=1, m=5, wgs=None, size=(0.05, 0.05)):
     slm.phaseToBMP(wgs2.phi[-1], name='%dx%dTEM01_input_phase' % (n, m), correction=True)
 
 
+# Simulate interference pattern of WGS beam array
 def interfere_wgs(slm):
     array1x5 = array1D(slm, 5, pitch=0.1)
     reference = Profile(field=Profile.input_gaussian(beam_type=0))
@@ -526,6 +561,7 @@ def interfere_wgs(slm):
     return interference.field
 
 
+# Simulate reference interference pattern
 def interfere_ref(slm):
     array1x5 = Profile(field=Profile.gaussian_array(1, 5)[0]).field
     reference = Profile(field=Profile.input_gaussian(beam_type=0))
@@ -535,6 +571,7 @@ def interfere_ref(slm):
     return interference.field
 
 
+# Generate 1D array using OutputOutput algorithm (unfinished)
 def array1D_OutputOutput(slm, it=20, n=5, pitch=0.02, size=(0.05, 0.05), start=None, ref=None, waist=0.01, plots=(0, 1, 2, 3)):
 
     oo = OutputOutput(input=Profile.input_gaussian(beam_size=cp.array(size)),
@@ -564,25 +601,33 @@ def array1D_OutputOutput(slm, it=20, n=5, pitch=0.02, size=(0.05, 0.05), start=N
     return oo
 
 
+# Generate an array of beams using the Wu algorithm
 def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
 
     start_time = time.time()
 
+    # Initialize input profile
     input_profile = cp.array(Profile.input_gaussian(beam_size=(0.5, 0.5), size=np.array(size)))
     input_profile /= cp.sqrt(cp.sum(cp.abs(input_profile)**2))
 
+    # Target array amplitudes and phases
     amps = cp.array([1. for _ in range(n)])
     phases = [0 for _ in range(n)]
     # phases = [0, pi, 0, pi, 0]
 
+    # Performance trackers
     eff = []
     nonunif = []
     phase_err = []
 
+    # Record each algorithm run
     wus = []
 
+    # Run the Wu algorithm M times
     for i in range(M):
         print('Iteration: ' + str(i))
+
+        # Generate a target array
         target = Profile.target_output_array(1, n, center=(0, 0), input_profile=input_profile.get(), x_pitch=0.004, amps=amps.get(), phases=phases, size=np.array(size))
         target[0] = cp.array(target[0])
 
@@ -591,6 +636,7 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
         # target = Profile.gaussian_array(1, 5, waist=(0.02, 0.02))
         # target[0] *= cp.exp(1j * cp.pi / 2)
 
+        # Run the Wu algorithm
         wu = Wu(input=input_profile, target=target, size=size)
         # print(wu.target.shape)
         wu.iterate(N)
@@ -633,6 +679,7 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
 
             plt.show()
 
+    # Find the minimum nonuniformity run of the Wu algorithm
     min_it = nonunif.index(min(nonunif))
 
     # TEM01 modulation
@@ -641,6 +688,7 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
 
     print('Time to run: ' + str(time.time() - start_time))
 
+    # Save algorithm results
     wus[min_it].save_pattern(name='wu_1x5_tem01_narrow_413', slm=slm, target=False, correction=True, show=())
     # plt.ion()
     slm.ampToBMP(cp.abs(wus[min_it].mask).get(), name='wu_1x5_mask', color=True)

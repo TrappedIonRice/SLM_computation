@@ -9,6 +9,7 @@ import slm
 import profile
 
 
+# Simply backpropagate the target light field to the SLM plane and apply the resulting phase profile to the SLM
 def inverse_phase(slm, color=True, target=None, spots=None, input_size=(0.05, 0.05)):
     if target is None or spots is None:
         target, spots = profile.Profile.gaussian_array(1, 5)

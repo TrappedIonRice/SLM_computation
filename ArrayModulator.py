@@ -15,6 +15,7 @@ import slm
 # matplotlib.use('QtAgg')
 
 
+# Use elementary functions of the SLM to for instance scatter/deflect incident beams and arrays of beams
 class ArrayModulator(slm.SLM):
 
     def __init__(self, size=np.array((1024, 1272)), correction_path="images/413corrwithLUT.bmp", beams=1, beam_positions=None, beam_sizes=None):
