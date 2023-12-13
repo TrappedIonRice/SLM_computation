@@ -12,9 +12,10 @@ import slm
 # import profile
 # from InversePhase import inverse_phase
 
-matplotlib.use('QtAgg')
+# matplotlib.use('QtAgg')
 
 
+# Use elementary functions of the SLM to for instance scatter/deflect incident beams and arrays of beams
 class ArrayModulator(slm.SLM):
 
     def __init__(self, size=np.array((1024, 1272)), correction_path="images/413corrwithLUT.bmp", beams=1, beam_positions=None, beam_sizes=None):
@@ -107,14 +108,14 @@ class ArrayModulator(slm.SLM):
 
 
 if __name__ == '__main__':
-    mod = ArrayModulator(beams=2)
+    mod = ArrayModulator(beams=1)
     tem01 = mod.tem01(mod.beams[0][1], axis=0)
-    shift = mod.flat(mod.beams[0][1], np.pi / 8)
-    rand = mod.rand(mod.beams[0][1])
-    grad = mod.gradient(mod.beams[0][1], angle=0.1 * np.pi / 180, axis=0)
+    # shift = mod.flat(mod.beams[0][1], np.pi / 8)
+    # rand = mod.rand(mod.beams[0][1])
+    grad = mod.gradient(mod.beams[0][1], angle=0.012 * np.pi / 180, axis=0)
     mod.add_phase(tem01)
-    mod.add_phase(shift, active_beams=[1])
-    mod.add_phase(grad, active_beams=[0])
+    # mod.add_phase(shift, active_beams=[1])
+    mod.add_phase(grad)
     # mod.add_phase(rand, active_beams=[0])
     # print(mod.phase)
-    mod.phaseToBMP(mod.phase, name='array_mod_test', color=True)
+    mod.phaseToBMP(mod.phase, name='slm_deflection_tem01_413', color=True, correction=True)

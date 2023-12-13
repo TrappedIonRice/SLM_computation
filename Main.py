@@ -1,5 +1,5 @@
-import slmsuite.holography.algorithms as algorithms
-import slmsuite.holography.toolbox.phase
+# import slmsuite.holography.algorithms as algorithms
+# import slmsuite.holography.toolbox.phase
 
 import numpy as np
 # import cupy as cp
@@ -7,7 +7,7 @@ import scipy
 import matplotlib.pyplot as plt
 import matplotlib
 
-import WGS
+import IFTA
 import slm
 import profile
 from InversePhase import inverse_phase
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     slm.ampToBMP(np.abs(farfield), name='1x5_output_amp', color=False)
     slm.phaseToBMP(np.angle(farfield), name='1x5_output_phase', color=False)
 
-    ifta = WGS.IFTA(input=input_prof, size=shape)
+    ifta = IFTA.IFTA(input=input_prof, size=shape)
     ifta.image_field = farfield
     ifta.spots = np.array([[spot[1], spot[0]] for spot in spot_hologram.spot_knm.transpose()], dtype=np.uint)
     print(ifta.spots)
