@@ -12,16 +12,18 @@ pi = np.pi
 # All coordinates normalized to [-1, 1]
 class SLM:
 
-    def __init__(self, size=np.array((1024, 1272)), correction_path="images/413corrwithLUT.bmp", lut=None, pitch=12500):
+    def __init__(self, size=np.array((1024, 1272)), correction_path="images/413corrwithLUT.bmp", lut=None, pitch=12500, wavelength=413):
         if lut is None:
-            lut = {411: 102, 413: 103, 435:114}
+            lut = {399: 93, 411: 102, 413: 103, 435:114}
         self.lut = lut
 
         self.size = size
         self.pitch = pitch
 
         correction_image = im.open(correction_path)
-        self.correction = np.array(correction_image) / lut[413] * 2 * pi
+        self.correction = np.array(correction_image) / lut[wavelength] * 2 * pi
+
+        # self.correction_399 = np.array(correction_image) / lut[399] * 2 * pi
 
     def coord(self, r=np.array((0, 0))):
         shape = np.array([self.size[1], self.size[0]])
@@ -98,8 +100,8 @@ class SLM:
             im.frombytes('RGB', fig.canvas.get_width_height(),
                          fig.canvas.tostring_rgb()).save('images/' + name + '_color.png')
 
-    def BMPToPhase(self, path):
-        return np.array(im.open(path)) / self.lut[413] * 2 * pi
+    def BMPToPhase(self, path, wavelength=413):
+        return np.array(im.open(path)) / self.lut[wavelength] * 2 * pi
 
     def BMPToAmp(self, path):
         out = np.array(im.open(path))
