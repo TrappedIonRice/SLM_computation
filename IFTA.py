@@ -94,23 +94,23 @@ class IFTA:
         return self.slm_field, self.image_field
 
     # Plot and save the results of the IFTA run
-    def save_pattern(self, name, slm, correction=False, plots=(0, 1, 2, 3, 4, 5), min=False, target=True, show=(0, 1, 2, 3, 4, 5)):
+    def save_pattern(self, name, slm, correction=False, plots=(0, 1, 2, 3, 4, 5), min=False, target=True, show=(0, 1, 2, 3, 4, 5), wavelength=413):
         if min:
             slm.ampToBMP(cp.abs(self.input).get(), name=name + '_input_amp', color=(0 in plots), show=(0 in show))
-            slm.phaseToBMP(self.min_dev[2].get(), name=name + '_input_phase', correction=correction, color=(1 in plots), show=(1 in show))
+            slm.phaseToBMP(self.min_dev[2].get(), name=name + '_input_phase', correction=correction, color=(1 in plots), show=(1 in show), wavelength=wavelength)
 
             slm.ampToBMP(self.min_dev[3].get(), name=name + '_output_amp', color=(2 in plots), show=(2 in show))
-            slm.phaseToBMP(self.min_dev[4].get(), name=name + '_output_phase', color=(3 in plots), show=(3 in show))
+            slm.phaseToBMP(self.min_dev[4].get(), name=name + '_output_phase', color=(3 in plots), show=(3 in show), wavelength=wavelength)
         else:
             slm.ampToBMP(cp.abs(self.slm_field).get(), name=name + '_input_amp', color=(0 in plots), show=(0 in show))
-            slm.phaseToBMP(cp.angle(self.slm_field).get(), name=name + '_input_phase', correction=correction, color=(1 in plots), show=(1 in show))
+            slm.phaseToBMP(cp.angle(self.slm_field).get(), name=name + '_input_phase', correction=correction, color=(1 in plots), show=(1 in show), wavelength=wavelength)
 
             slm.ampToBMP(cp.abs(self.image_field).get(), name=name + '_output_amp', color=(2 in plots), show=(2 in show))
-            slm.phaseToBMP(cp.angle(self.image_field).get(), name=name + '_output_phase', color=(3 in plots), show=(3 in show))
+            slm.phaseToBMP(cp.angle(self.image_field).get(), name=name + '_output_phase', color=(3 in plots), show=(3 in show), wavelength=wavelength)
 
         if target:
             slm.ampToBMP(cp.abs(self.target).get(), name=name + '_target_amp', color=(4 in plots), show=(4 in show))
-            slm.phaseToBMP(cp.angle(self.target).get(), name=name + '_target_phase', color=(5 in plots), show=(5 in show))
+            slm.phaseToBMP(cp.angle(self.target).get(), name=name + '_target_phase', color=(5 in plots), show=(5 in show), wavelength=wavelength)
 
     # Take the average of the field in a circle of radius centered at pos
     def avg(self, field, pos, radius):
@@ -502,14 +502,14 @@ def array2D(slm, n=4, m=4, x_pitch=0.02, y_pitch=0.02, size=(0.05, 0.05)):
 
 
 # WGS 1D array of beams
-def array1D(slm, it=20, tries=1, n=5, pitch=0.02, size=(0.05, 0.05), start=None, ref=None, consider_phase=False, waist=0.01, plots=(0, 1, 2, 3), add_noise=False):
+def array1D(slm, it=20, tries=1, n=5, pitch=0.004, size=(0.05, 0.05), start=None, ref=None, consider_phase=False, waist=0.01, plots=(0, 1, 2, 3), add_noise=False):
     wgs = []
     min = 0
     start = [start]
     for i in range(tries):
         if add_noise:
             start.append(start[0] + (cp.random.random_sample(slm.size) - 0.5) * 0.1)
-        wgs.append(WGS(input=Profile.input_gaussian(beam_size=cp.array(size)),
+        wgs.append(WGS(input=Profile.input_gaussian(beam_size=np.array(size)),
                        target=Profile.spot_array(1, n, y_pitch=pitch, center=(0.05, 0)), start_phase=start[-1], reference=None, consider_phase=consider_phase, waist=waist))
         wgs[-1].iterate(it)
         if wgs[min].min_dev[6] > wgs[-1].min_dev[6]:
@@ -601,13 +601,29 @@ def array1D_OutputOutput(slm, it=20, n=5, pitch=0.02, size=(0.05, 0.05), start=N
     return oo
 
 
+# Plot the horizontal electric field gradient at the center of the image
+def plot_gradient(field, coord=0, axis=0):
+    # E_t = np.real(target_field[len(target_field) / 2 - 1, :].get())
+    E_im = field[len(field) / 2 - 1, :].get()
+    plt.figure()
+    plt.plot([i for i in range(len(field[1]))], np.real(E_im), label='E field (real)')
+    plt.plot([i for i in range(len(field[1]))], np.imag(E_im), label='E field (imag)')
+    # plt.plot([i + 0.5 for i in range(len(target_field[1]) - 1)], [E_t[i + 1] - E_t[i] for i in range(len(E_t) - 1)],
+    #          label='E gradient (target)')
+    grad = [E_im[i + 1] - E_im[i] for i in range(len(E_im) - 1)]
+    plt.plot([i + 0.5 for i in range(len(field[1]) - 1)], np.real(grad), label='E gradient (real)')
+    plt.plot([i + 0.5 for i in range(len(field[1]) - 1)], np.imag(grad), label='E gradient (imag)')
+    plt.legend()
+    plt.pause(0.001)
+
+
 # Generate an array of beams using the Wu algorithm
-def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
+def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024), res_factor=1):
 
     start_time = time.time()
 
     # Initialize input profile
-    input_profile = cp.array(Profile.input_gaussian(beam_size=(0.5, 0.5), size=np.array(size)))
+    input_profile = cp.array(Profile.input_gaussian(beam_size=(0.2, 0.2), size=np.array(size)))
     input_profile /= cp.sqrt(cp.sum(cp.abs(input_profile)**2))
 
     # Target array amplitudes and phases
@@ -628,7 +644,7 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
         print('Iteration: ' + str(i))
 
         # Generate a target array
-        target = Profile.target_output_array(1, n, center=(0, 0), input_profile=input_profile.get(), x_pitch=0.004, amps=amps.get(), phases=phases, size=np.array(size))
+        target = Profile.target_output_array(1, n, center=(0, 0), input_profile=input_profile.get(), x_pitch=0.016, amps=amps.get(), phases=phases, size=np.array(size))
         target[0] = cp.array(target[0])
 
         # print(cp.sum(cp.abs(input_profile)**2))
@@ -682,14 +698,14 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
     # Find the minimum nonuniformity run of the Wu algorithm
     min_it = nonunif.index(min(nonunif))
 
-    # TEM01 modulation
+    # # TEM01 modulation
     wus[min_it].slm_field = cp.abs(wus[min_it].slm_field) * cp.exp(1j * cp.array(slm.add(cp.angle(wus[min_it].slm_field).get(), slm.half())))
     wus[min_it].image_field = cp.fft.fftshift(cp.fft.fft2(cp.fft.fftshift(wus[min_it].slm_field), norm="ortho"))
 
     print('Time to run: ' + str(time.time() - start_time))
 
     # Save algorithm results
-    wus[min_it].save_pattern(name='wu_1x5_tem01_narrow_413', slm=slm, target=False, correction=True, show=())
+    wus[min_it].save_pattern(name='wu_1x5_wide_tem01_399', slm=slm, target=False, correction=True, show=(), wavelength=399)
     # plt.ion()
     slm.ampToBMP(cp.abs(wus[min_it].mask).get(), name='wu_1x5_mask', color=True)
 
@@ -701,6 +717,8 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
     print('Diffraction Efficiency: ' + str(eff[min_it]))
     print('Amplitude nonuniformity: ' + str(nonunif[min_it]))
     print('Phase error: ' + str(phase_err[min_it]))
+
+    plot_gradient(wus[min_it].image_field)
 
     plt.figure()
     plt.clf()
@@ -736,7 +754,10 @@ def wu(slm, N=40, M=20, n=5, plot_each=False, size=(1272, 1024)):
 if __name__ == '__main__':
 
     size = (1024, 1272)
-    slm = SLM(size=size)
+    slm = SLM(size=size, wavelength=399)
+
+    # array1D(slm)
+    # pass
 
     # tem01(slm, size=(0.02, 0.02))
     input_size = (0.05, 0.05)

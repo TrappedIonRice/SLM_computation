@@ -108,14 +108,22 @@ class ArrayModulator(slm.SLM):
 
 
 if __name__ == '__main__':
-    mod = ArrayModulator(beams=1)
-    tem01 = mod.tem01(mod.beams[0][1], axis=0)
+    mod = ArrayModulator(beams=1, correction_path='images/399corrwithLUT.bmp')
+    # corr = mod.BMPToPhase(path='images/399corrwithLUT.bmp', wavelength=399)
+    # tem01 = mod.tem01(mod.beams[0][1], axis=0)
     # shift = mod.flat(mod.beams[0][1], np.pi / 8)
     # rand = mod.rand(mod.beams[0][1])
+    beamsplitter = mod.BMPToPhase(path='images/wu_1x5_wide_399_input_phase.bmp', wavelength=399)
     grad = mod.gradient(mod.beams[0][1], angle=0.012 * np.pi / 180, axis=0)
-    mod.add_phase(tem01)
+    # mod.add_phase(corr)
     # mod.add_phase(shift, active_beams=[1])
     mod.add_phase(grad)
+    mod.add_phase(beamsplitter)
     # mod.add_phase(rand, active_beams=[0])
     # print(mod.phase)
-    mod.phaseToBMP(mod.phase, name='slm_deflection_tem01_413', color=True, correction=True)
+    mod.phaseToBMP(mod.phase, name='wu_1x5_wide_input_phase_399_deflected', color=True, correction=False, wavelength=399)
+
+    mod = ArrayModulator(beams=1, correction_path='images/399corrwithLUT.bmp')
+    rand = mod.rand(mod.beams[0][1])
+    mod.add_phase(rand)
+    mod.phaseToBMP(mod.phase, name='rand_399', color=True, correction=True, wavelength=399)

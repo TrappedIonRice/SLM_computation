@@ -37,7 +37,7 @@ class Profile:
     # Generate single gaussian beam
     @staticmethod
     def input_gaussian(beam_type=0, amp=1.0, beam_size=np.array((0.5, 0.5)), pos=np.array((0, 0)),
-                       size=np.array((1024, 1272))):
+                       size=np.array((1024, 1272)), mesh=False):
 
         if beam_type == 0:
             # beam_size[0] *= size[0] / size[1]
@@ -52,6 +52,9 @@ class Profile:
         # print(amp)
         amp_profile = amp * beams[0] * beams[1]
         # phase_profile = np.ones(size) * np.exp(2j * pi)
+
+        if mesh:
+            return amp_profile, beams
 
         return amp_profile
 
